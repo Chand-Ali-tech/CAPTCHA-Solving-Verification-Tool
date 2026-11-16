@@ -1,111 +1,139 @@
-# CAPTCHA Solving & Verification Tool
+# CAPTCHA Recognition, Solving and Verification Tool
 
-A standalone application that **recognizes**, **solves**, and **verifies**
-CAPTCHA challenges in an authorized test environment.
+A web application for exploring CAPTCHA image recognition, OCR-based solving of supported synthetic text challenges, provider widget detection, and server-side verification of provider test tokens. It combines a Next.js frontend with a FastAPI backend and keeps provider secrets on the server.
 
-- **Frontend** — Next.js (App Router + TypeScript), in [`frontend/`](frontend/).
-- **Backend** — FastAPI (Python) with a custom OpenCV + Tesseract OCR solver
-  and official provider token verification, in [`captcha-tool/`](captcha-tool/).
+## Features
 
-The Next.js UI calls the backend through `/api/*`, which Next proxies to the
-FastAPI server (see [`frontend/next.config.mjs`](frontend/next.config.mjs)) —
-so there is no CORS setup and no backend host baked into the browser bundle.
+- Generate synthetic text CAPTCHA samples and compare OCR predictions with their known answers.
+- Upload an image, preview it, classify its likely challenge type, and run OCR when the image is supported.
+- Inspect HTML snippets for signatures from Google reCAPTCHA, hCaptcha, Cloudflare Turnstile, or Cloudflare managed challenge pages.
+- Verify provider widget tokens through the providers' official `siteverify` endpoints.
+- Run batches against generated samples and view accuracy, timing, and method statistics.
 
-> **Scope & ethics.** Tested only against synthetic CAPTCHAs we generate and
-> the providers' official public **test keys**. It does **not** automate
-> third-party contact forms, submit to real sites, or bypass anti-bot
-> protection on sites we don't own — consistent with the assignment scope.
+The image classifier uses simple image measurements and is intended for demonstration. OCR performance varies with image quality and distortion. Photo-selection challenges are identified as unsupported; the application does not solve them.
 
----
+## Technology
 
-## Project layout
-
-```
-Challange/
-├── captcha-tool/      FastAPI backend (Python)
-│   ├── app/           recognition, solver, synthetic, verification, stats, main
-│   ├── requirements.txt
-│   └── README.md      ← backend details: API reference, cost breakdown, env vars
-└── frontend/          Next.js frontend (TypeScript)
-    ├── app/
-    │   ├── page.tsx         tab shell + backend config
-    │   ├── components/      one component per feature tab + CaptchaWidget
-    │   └── lib/api.ts       typed backend client
-    └── next.config.mjs      proxies /api/* to the backend
-```
-
----
-
-## Architecture
-
-```
-Browser ──► Next.js UI (port 3000)
-                │  fetch("/api/...")
-                │  (Next.js rewrite proxies to the backend)
-                ▼
-            FastAPI backend (port 8000)
-                ├─ recognition  (challenge type + provider widget)
-                ├─ solver       (OpenCV preprocessing → Tesseract OCR → confidence)
-                ├─ synthetic    (owned CAPTCHA generator, ground-truth labels)
-                ├─ verification (provider /siteverify with the SECRET key)
-                └─ stats        (attempts / success / time / cost)
-```
-
----
-
-## Run it (two terminals)
-
-### Terminal 1 — backend (FastAPI)
-```bash
-cd captcha-tool
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-sudo apt-get install -y tesseract-ocr               # the OCR engine (macOS: brew install tesseract)
-cp .env.example .env                                # defaults are official test keys — ready to run
-uvicorn app.main:app --reload                       # http://127.0.0.1:8000
-```
-
-### Terminal 2 — frontend (Next.js)
-```bash
-cd frontend
-npm install
-npm run dev                                          # http://127.0.0.1:3000
-```
-
-Open **http://127.0.0.1:3000**. If the red banner says the backend is
-unreachable, make sure Terminal 1 is running.
-
-> The backend also still serves a minimal fallback UI at
-> http://127.0.0.1:8000 — handy if you ever want to demo without Node.
-
----
-
-## Features (mapped to the rubric)
-
-| Rubric criterion | Weight | Where |
+| Area | Technologies | Purpose |
 |---|---|---|
-| Recognition / solving accuracy | 30% | `captcha-tool/app/recognition.py`, `solver.py` |
-| Verification-token handling | 20% | `captcha-tool/app/verification.py` |
-| Custom AI / API integration | 20% | `solver.py` (OpenCV + Tesseract) |
-| Reliability & error handling | 15% | graceful errors; best-of-N solving; 503 on missing Tesseract |
-| Interface & reporting | 10% | Next.js app + `stats.py` dashboard |
-| Code quality & documentation | 5% | typed components, docstrings, tests, this README |
+| Frontend | Next.js 14, React 18, TypeScript | Tabbed interface, image upload and preview, provider widgets, and results. |
+| Backend | Python, FastAPI, Uvicorn | API routes, application logic, and server-side provider calls. |
+| Image processing | Pillow, NumPy, OpenCV | Image decoding, basic classification signals, and OCR preprocessing. |
+| OCR | Tesseract OCR through `pytesseract` | Reads supported text CAPTCHA images. Tesseract must also be installed as a system program. |
+| Provider verification | `httpx` and provider `siteverify` APIs | Sends tokens and secret keys from the backend for official verification. |
 
-**Bonus implemented:** three providers, batch accuracy stats, a reusable JSON
-API, and a best-of-N preprocessing fallback.
+## Project structure
 
-See [`captcha-tool/README.md`](captcha-tool/README.md) for backend-specific
-details (full API reference, cost breakdown, env vars, demo script) and
-[`frontend/README.md`](frontend/README.md) for frontend notes.
-
----
-
-## Production build (frontend)
-```bash
-cd frontend
-npm run build && npm run start        # serves the optimized Next.js app
+```text
+.
+├── server/
+│   ├── app/
+│   │   ├── main.py          FastAPI routes and application wiring
+│   │   ├── recognition.py   Image and provider signature recognition
+│   │   ├── solver.py        Image preprocessing and OCR
+│   │   ├── synthetic.py     Synthetic text CAPTCHA generation
+│   │   ├── verification.py  Provider token verification
+│   │   ├── stats.py         In-memory run statistics
+│   │   └── static/          Minimal backend-served interface
+│   ├── requirements.txt
+│   └── .env.example
+└── client/
+    ├── app/
+    │   ├── components/      Feature tabs and provider widget
+    │   ├── lib/api.ts       Typed API client
+    │   └── page.tsx         Main interface
+│   ├── next.config.mjs      Server-side proxy for /api requests
+│   └── package.json
 ```
-Point the UI at a non-local backend by setting `BACKEND_URL` before building:
+
+## Run locally
+
+### Prerequisites
+
+- Python 3.10 or newer
+- Node.js and npm
+- Tesseract OCR installed and available on your `PATH`
+
+On Debian or Ubuntu, install Tesseract with:
+
 ```bash
-BACKEND_URL="https://your-backend.example.com" npm run build
+sudo apt-get install tesseract-ocr
 ```
+
+On macOS, use `brew install tesseract`. On Windows, install a Tesseract build and make sure its executable is on `PATH`.
+
+### Start the backend
+
+```bash
+cd server
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+uvicorn app.main:app --reload
+```
+
+The API is available at `http://127.0.0.1:8000`. The backend's `.env.example` provides the configuration names and development defaults. Keep any real provider secret keys in `server/.env`; do not expose them in frontend code or commit them.
+
+### Start the frontend
+
+In a second terminal:
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:3000`. The frontend forwards `/api/*` requests to the backend at `http://127.0.0.1:8000` by default. To use another backend URL, set `BACKEND_URL` when running or building the frontend.
+
+## Application flow
+
+```text
+Browser
+  │
+  ▼
+Next.js interface ── /api proxy ──► FastAPI
+                                      ├── Recognition
+                                      ├── OCR solver
+                                      ├── Synthetic generator
+                                      ├── Provider verification
+                                      └── Statistics
+```
+
+For an image upload, the backend first checks whether the image resembles a supported text challenge. If supported, it creates OCR-friendly image variants and evaluates them with Tesseract. For a generated sample, the known text is available to report correctness. Uploaded images do not include a known answer, so their correctness cannot be automatically scored.
+
+For provider verification, the frontend sends a provider name and token to the backend. The backend uses its configured secret to call the provider's verification endpoint and returns a structured result. Public site keys may be sent to the browser to render widgets; secret keys stay server-side.
+
+## API overview
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/config` | Returns public widget keys and cost settings. |
+| `POST` | `/api/recognize/image` | Classifies an uploaded image. |
+| `POST` | `/api/recognize/provider` | Checks HTML for provider signatures. |
+| `POST` | `/api/solve` | Recognizes and runs OCR on a supported uploaded image. |
+| `GET` | `/api/sample` | Returns a generated sample image. |
+| `POST` | `/api/solve/sample` | Generates and solves one sample, including correctness. |
+| `POST` | `/api/batch` | Measures results over generated samples. |
+| `POST` | `/api/verify` | Verifies a provider token server-side. |
+| `GET` | `/api/stats` | Returns in-memory run statistics. |
+| `POST` | `/api/stats/reset` | Resets in-memory run statistics. |
+
+## Production frontend build
+
+```bash
+cd client
+npm run build
+npm run start
+```
+
+Set `BACKEND_URL` to the intended FastAPI server address for the deployment environment.
+
+## Limitations
+
+- OCR is a conventional Tesseract pipeline; accuracy depends on the image and preprocessing and is not guaranteed.
+- Image type classification is heuristic and may return `unknown` for ambiguous images.
+- Provider recognition inspects supplied HTML signatures; it does not load or execute the page.
+- Dashboard statistics are held in memory and reset when the backend restarts.
+- Provider token verification requires correctly configured provider keys and network access to the provider endpoint.
