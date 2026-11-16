@@ -1,0 +1,26 @@
+# Minimum versions (lower bounds) so pip picks prebuilt wheels for whatever
+# Python version you run — including very new ones like 3.14. Tested on
+# Python 3.11 and 3.14.
+
+# --- Web framework ---
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.17      # needed for file uploads in FastAPI
+
+# --- Config ---
+python-dotenv>=1.0            # load secrets from .env
+
+# --- CAPTCHA generation (synthetic dataset) ---
+captcha>=0.6                  # bundles fonts, makes realistic text CAPTCHAs
+
+# --- Custom OCR solving engine ---
+opencv-python-headless>=4.10  # image preprocessing (denoise, threshold)
+pytesseract>=0.3.13           # Python wrapper around the Tesseract OCR engine
+Pillow>=10.0                  # image loading/saving
+numpy>=1.26                   # array math for OpenCV
+
+# --- Provider token verification ---
+httpx>=0.27                   # async HTTP client to call provider siteverify APIs
+
+# --- Tests ---
+pytest>=8.0

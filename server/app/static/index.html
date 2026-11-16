@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAPTCHA Solving &amp; Verification Tool</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --ink:#e2e8f0; --muted:#94a3b8;
+          --accent:#38bdf8; --ok:#22c55e; --bad:#ef4444; --line:#334155; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); }
+  header { padding:20px 24px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:20px; }
+  header p { margin:4px 0 0; color:var(--muted); font-size:13px; }
+  .wrap { max-width:960px; margin:0 auto; padding:16px; }
+  nav { display:flex; gap:8px; flex-wrap:wrap; margin:16px 0; }
+  nav button { background:var(--card); color:var(--ink); border:1px solid var(--line);
+               padding:8px 14px; border-radius:8px; cursor:pointer; font-size:14px; }
+  nav button.active { border-color:var(--accent); color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 6px; font-size:16px; }
+  .card p.hint { color:var(--muted); font-size:13px; margin:0 0 14px; }
+  button.go { background:var(--accent); color:#06283d; border:0; padding:9px 16px;
+              border-radius:8px; font-weight:600; cursor:pointer; }
+  button.go:disabled { opacity:.5; cursor:not-allowed; }
+  input, textarea, select { background:#0b1220; color:var(--ink);
+       border:1px solid var(--line); border-radius:8px; padding:8px; font-size:14px; }
+  textarea { width:100%; min-height:90px; font-family:ui-monospace,monospace; }
+  pre { background:#0b1220; border:1px solid var(--line); border-radius:8px;
+        padding:12px; overflow:auto; font-size:12.5px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .badge { display:inline-block; padding:3px 9px; border-radius:999px; font-size:12px; font-weight:600; }
+  .badge.ok { background:rgba(34,197,94,.15); color:var(--ok); }
+  .badge.bad{ background:rgba(239,68,68,.15); color:var(--bad); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:12px; }
+  .stat { background:#0b1220; border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .stat .n { font-size:22px; font-weight:700; }
+  .stat .l { color:var(--muted); font-size:12px; }
+  img.captcha { background:#fff; border-radius:8px; padding:4px; }
+  .muted { color:var(--muted); font-size:12.5px; }
+  @media (max-width:560px){ .row{flex-direction:column; align-items:stretch;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>CAPTCHA Solving &amp; Verification Tool</h1>
+  <p>Authorized test environment — synthetic CAPTCHAs &amp; official provider test keys only.</p>
+</header>
+
+<div class="wrap">
+  <nav>
+    <button data-tab="solve" class="active">1 · Recognize &amp; Solve</button>
+    <button data-tab="provider">2 · Provider Recognition</button>
+    <button data-tab="verify">3 · Token Verification</button>
+    <button data-tab="stats">4 · Batch &amp; Dashboard</button>
+  </nav>
+
+  <!-- TAB 1: SOLVE -->
+  <section id="tab-solve">
+    <div class="card">
+      <h2>Try a synthetic CAPTCHA</h2>
+      <p class="hint">Generates a CAPTCHA we own, then runs our custom OCR engine and compares to the known answer.</p>
+      <div class="row">
+        <button class="go" id="newSample">Get new sample</button>
+        <button class="go" id="solveSample">Generate &amp; solve</button>
+      </div>
+      <div id="sampleArea" class="row" style="margin-top:14px;"></div>
+      <pre id="sampleOut" style="display:none;"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Upload your own image</h2>
+      <p class="hint">Recognizes the challenge type first; solves it only if it's a supported text CAPTCHA.</p>
+      <div class="row">
+        <input type="file" id="solveFile" accept="image/*">
+        <label class="muted">expected length
+          <input type="number" id="expLen" value="5" min="1" max="12" style="width:64px;"></label>
+        <button class="go" id="solveUpload">Recognize &amp; solve</button>
+      </div>
+      <pre id="uploadOut" style="display:none; margin-top:12px;"></pre>
+    </div>
+  </section>
+
+  <!-- TAB 2: PROVIDER RECOGNITION -->
+  <section id="tab-provider" style="display:none;">
+    <div class="card">
+      <h2>Detect the provider from page HTML</h2>
+      <p class="hint">Paste the HTML of an OWNED test page or an official provider demo. We identify reCAPTCHA, hCaptcha, or Turnstile.</p>
+      <textarea id="htmlIn" placeholder='e.g.  &lt;div class="g-recaptcha" data-sitekey="..."&gt;&lt;/div&gt;'></textarea>
+      <div class="row" style="margin-top:10px;">
+        <button class="go" id="detectBtn">Detect provider</button>
+        <button class="go" id="fillRecaptcha" style="background:#334155;color:#e2e8f0;">Example: reCAPTCHA</button>
+        <button class="go" id="fillTurnstile" style="background:#334155;color:#e2e8f0;">Example: Turnstile</button>
+      </div>
+      <pre id="providerOut" style="display:none; margin-top:12px;"></pre>
+    </div>
+  </section>
+
+  <!-- TAB 3: TOKEN VERIFICATION -->
+  <section id="tab-verify" style="display:none;">
+    <div class="card">
+      <h2>Official token verification</h2>
+      <p class="hint">These are each provider's official TEST widgets (always pass). Solve one, then we verify its
+        token server-side with the secret key. The raw token never leaves the server unexposed.</p>
+
+      <h3 style="font-size:14px;">Google reCAPTCHA v2</h3>
+      <div id="recaptcha-box"></div>
+      <div class="muted" id="recaptcha-status">Waiting for token…</div>
+
+      <h3 style="font-size:14px; margin-top:18px;">hCaptcha</h3>
+      <div id="hcaptcha-box"></div>
+      <div class="muted" id="hcaptcha-status">Waiting for token…</div>
+
+      <h3 style="font-size:14px; margin-top:18px;">Cloudflare Turnstile</h3>
+      <div id="turnstile-box"></div>
+      <div class="muted" id="turnstile-status">Waiting for token…</div>
+    </div>
+
+    <div class="card">
+      <h2>Failure-case testing</h2>
+      <p class="hint">Verify handling of missing / invalid / expired / reused tokens.</p>
+      <div class="row">
+        <select id="failProvider">
+          <option value="recaptcha">reCAPTCHA</option>
+          <option value="hcaptcha">hCaptcha</option>
+          <option value="turnstile">Turnstile</option>
+        </select>
+        <input id="failToken" placeholder="token (leave blank = missing)" style="flex:1; min-width:200px;">
+        <button class="go" id="failVerify">Verify</button>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="go" style="background:#334155;color:#e2e8f0;" id="tMissing">missing</button>
+        <button class="go" style="background:#334155;color:#e2e8f0;" id="tInvalid">invalid</button>
+      </div>
+      <pre id="verifyOut" style="display:none; margin-top:12px;"></pre>
+    </div>
+  </section>
+
+  <!-- TAB 4: BATCH + STATS -->
+  <section id="tab-stats" style="display:none;">
+    <div class="card">
+      <h2>Batch accuracy test</h2>
+      <p class="hint">Generate N synthetic CAPTCHAs and solve them all for an accuracy measurement.</p>
+      <div class="row">
+        <label class="muted">count <input type="number" id="batchN" value="20" min="1" max="200" style="width:72px;"></label>
+        <button class="go" id="batchBtn">Run batch</button>
+      </div>
+      <pre id="batchOut" style="display:none; margin-top:12px;"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Live dashboard</h2>
+      <p class="hint">Running totals across everything you've done this session.</p>
+      <div class="grid" id="statGrid"></div>
+      <div class="row" style="margin-top:12px;">
+        <button class="go" id="refreshStats">Refresh</button>
+        <button class="go" style="background:#334155;color:#e2e8f0;" id="resetStats">Reset</button>
+      </div>
+      <pre id="statRaw" style="display:none; margin-top:12px;"></pre>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const show = (el, obj) => { el.style.display="block"; el.textContent =
+   (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2); };
+
+// ---- tabs ----
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  ["solve","provider","verify","stats"].forEach(t =>
+     $("#tab-"+t).style.display = (t===b.dataset.tab)?"block":"none");
+  if (b.dataset.tab==="stats") refreshStats();
+});
+
+// ---- Tab 1: solve ----
+async function loadSample(){
+  const r = await fetch("/api/sample");
+  const label = r.headers.get("X-Captcha-Label");
+  const blob = await r.blob();
+  $("#sampleArea").innerHTML =
+    `<img class="captcha" src="${URL.createObjectURL(blob)}"><span class="muted">ground truth: <b>${label}</b></span>`;
+}
+$("#newSample").onclick = loadSample;
+$("#solveSample").onclick = async () => {
+  const r = await fetch("/api/solve/sample", {method:"POST"});
+  const d = await r.json();
+  const ok = d.correct;
+  show($("#sampleOut"),
+    `Predicted: ${d.solve.text}   (truth: ${d.ground_truth})\n` +
+    `Correct:   ${ok ? "✅ yes" : "❌ no"}\n` +
+    `Confidence:${(d.solve.confidence*100).toFixed(1)}%\n` +
+    `Method:    ${d.solve.method}\n` +
+    `Time:      ${d.solve.elapsed_ms} ms`);
+};
+$("#solveUpload").onclick = async () => {
+  const f = $("#solveFile").files[0];
+  if(!f){ alert("Choose an image first."); return; }
+  const fd = new FormData(); fd.append("file", f);
+  fd.append("expected_length", $("#expLen").value);
+  const r = await fetch("/api/solve", {method:"POST", body:fd});
+  show($("#uploadOut"), await r.json());
+};
+
+// ---- Tab 2: provider recognition ----
+$("#detectBtn").onclick = async () => {
+  const fd = new FormData(); fd.append("html", $("#htmlIn").value);
+  const r = await fetch("/api/recognize/provider", {method:"POST", body:fd});
+  show($("#providerOut"), await r.json());
+};
+$("#fillRecaptcha").onclick = () => $("#htmlIn").value =
+  '<script src="https://www.google.com/recaptcha/api.js"><\/script>\n<div class="g-recaptcha" data-sitekey="XXX"></div>';
+$("#fillTurnstile").onclick = () => $("#htmlIn").value =
+  '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"><\/script>\n<div class="cf-turnstile" data-sitekey="XXX"></div>';
+
+// ---- Tab 3: verification ----
+async function verify(provider, token){
+  const fd = new FormData(); fd.append("provider", provider); fd.append("token", token||"");
+  const r = await fetch("/api/verify", {method:"POST", body:fd});
+  return r.json();
+}
+async function onToken(provider, token, statusEl){
+  statusEl.innerHTML = "verifying…";
+  const d = await verify(provider, token);
+  const badge = d.verified ? '<span class="badge ok">VERIFIED</span>' : '<span class="badge bad">'+d.status+'</span>';
+  statusEl.innerHTML = badge + " " + d.message +
+     (d.token_fingerprint ? ` <span class="muted">(token #${d.token_fingerprint})</span>`:"");
+}
+// callbacks referenced by the provider widgets:
+window.recaptchaCb = t => onToken("recaptcha", t, $("#recaptcha-status"));
+window.hcaptchaCb  = t => onToken("hcaptcha",  t, $("#hcaptcha-status"));
+window.turnstileCb = t => onToken("turnstile", t, $("#turnstile-status"));
+
+$("#failVerify").onclick = async () =>
+  show($("#verifyOut"), await verify($("#failProvider").value, $("#failToken").value));
+$("#tMissing").onclick = async () =>
+  show($("#verifyOut"), await verify($("#failProvider").value, ""));
+$("#tInvalid").onclick = async () =>
+  show($("#verifyOut"), await verify($("#failProvider").value, "this-is-not-a-real-token"));
+
+// ---- Tab 4: batch + stats ----
+$("#batchBtn").onclick = async () => {
+  $("#batchBtn").disabled = true; $("#batchBtn").textContent="Running…";
+  const fd = new FormData(); fd.append("count", $("#batchN").value);
+  const r = await fetch("/api/batch", {method:"POST", body:fd});
+  const d = await r.json();
+  show($("#batchOut"),
+    `Accuracy: ${(d.accuracy*100).toFixed(1)}%  (${d.correct}/${d.count})\n`+
+    `Avg time: ${d.avg_time_ms} ms\n\n`+
+    d.results.map(x=>`${x.correct?"✅":"❌"} ${x.truth} → ${x.predicted}  (${(x.confidence*100).toFixed(0)}%)`).join("\n"));
+  $("#batchBtn").disabled = false; $("#batchBtn").textContent="Run batch";
+  refreshStats();
+};
+async function refreshStats(){
+  const d = await (await fetch("/api/stats")).json();
+  $("#statGrid").innerHTML = [
+    ["Attempts", d.total_attempts], ["Success", d.successful], ["Failed", d.failed],
+    ["Accuracy", (d.accuracy*100).toFixed(1)+"%"], ["Avg time", d.avg_time_ms+" ms"],
+    ["Est. cost", "$"+d.total_cost_usd.toFixed(4)],
+  ].map(([l,n])=>`<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+  show($("#statRaw"), d);
+}
+$("#refreshStats").onclick = refreshStats;
+$("#resetStats").onclick = async () => { await fetch("/api/stats/reset",{method:"POST"}); refreshStats(); };
+
+// ---- load provider widgets with public site keys from the backend ----
+(async () => {
+  await loadSample();
+  const cfg = await (await fetch("/api/config")).json();
+  const k = cfg.site_keys;
+  // reCAPTCHA
+  addWidget("recaptcha-box", "g-recaptcha", {sitekey:k.recaptcha, callback:"recaptchaCb"});
+  loadScript("https://www.google.com/recaptcha/api.js");
+  // hCaptcha
+  addWidget("hcaptcha-box", "h-captcha", {sitekey:k.hcaptcha, callback:"hcaptchaCb"});
+  loadScript("https://js.hcaptcha.com/1/api.js");
+  // Turnstile
+  addWidget("turnstile-box", "cf-turnstile", {sitekey:k.turnstile, callback:"turnstileCb"});
+  loadScript("https://challenges.cloudflare.com/turnstile/v0/api.js");
+})();
+function addWidget(boxId, cls, attrs){
+  const d = document.createElement("div"); d.className = cls;
+  for(const [a,v] of Object.entries(attrs)) d.setAttribute("data-"+a, v);
+  document.getElementById(boxId).appendChild(d);
+}
+function loadScript(src){ const s=document.createElement("script");
+  s.src=src; s.async=true; s.defer=true; document.head.appendChild(s); }
+</script>
+</body>
+</html>

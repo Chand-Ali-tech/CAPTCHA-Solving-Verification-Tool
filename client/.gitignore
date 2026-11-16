@@ -1,0 +1,22 @@
+# Next.js / Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# Env
+.env
+.env.local
+.env*.local
+
+# Assignment source material (keep out of the app repo if you prefer)
+# CAPTCHA_Automation_Assignment.pdf
+# USA_Ecommerce_Platforms_200_Contact_Pages.csv
+.~lock.*
+
+# OS / editor
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts

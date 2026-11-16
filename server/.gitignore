@@ -1,0 +1,17 @@
+# Secrets — never commit the real .env
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Generated synthetic dataset (regenerate with scripts/generate_dataset.py)
+data/synthetic/
+
+# OS / editor
+.DS_Store
+.~lock.*
